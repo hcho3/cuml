@@ -57,9 +57,9 @@ cdef extern from "treelite/c_api.h":
     cdef int TreeliteLoadXGBoostModelLegacyBinary(const char* filename,
                                                   const char* config_json,
                                                   TreeliteModelHandle* out) except +
-    cdef int TreeliteLoadXGBoostModel(const char* filename,
-                                      const char* config_json,
-                                      TreeliteModelHandle* out) except +
+    cdef int TreeliteLoadXGBoostModelJSON(const char* filename,
+                                          const char* config_json,
+                                          TreeliteModelHandle* out) except +
     cdef int TreeliteFreeModel(TreeliteModelHandle handle) except +
     cdef int TreeliteQueryNumTree(TreeliteModelHandle handle, size_t* out) except +
     cdef int TreeliteQueryNumFeature(TreeliteModelHandle handle, int* out) except +
@@ -214,7 +214,7 @@ cdef class TreeliteModel():
                 err_msg = TreeliteGetLastError().decode("UTF-8")
                 raise RuntimeError(f"Failed to load {filename} ({err_msg})")
         elif model_type == "xgboost_json":
-            res = TreeliteLoadXGBoostModel(filename_bytes, config_bytes, &handle)
+            res = TreeliteLoadXGBoostModelJSON(filename_bytes, config_bytes, &handle)
             if res < 0:
                 err_msg = TreeliteGetLastError().decode("UTF-8")
                 raise RuntimeError(f"Failed to load {filename} ({err_msg})")
