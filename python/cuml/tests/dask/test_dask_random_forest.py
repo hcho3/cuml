@@ -418,6 +418,43 @@ def test_rf_classification_balanced_class_weight(client):
     )
 
 
+def test_rf_classification_zero_class_weight_on_one_worker(client):
+    workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
+    if len(workers) < 2:
+        pytest.skip("This test requires at least two workers")
+
+    X_futures = []
+    y_futures = []
+    for label, worker in enumerate(workers):
+        X_part = cudf.DataFrame(np.zeros((20, 1), dtype=np.float32))
+        y_part = cudf.Series(np.full(20, label, dtype=np.int32))
+        X_futures.append(client.scatter(X_part, workers=[worker], hash=False))
+        y_futures.append(client.scatter(y_part, workers=[worker], hash=False))
+
+    X = dask_cudf.from_delayed(X_futures, meta=X_part.iloc[:0])
+    y = dask_cudf.from_delayed(y_futures, meta=y_part.iloc[:0])
+
+    model = cuRFC_mg(
+        workers=workers,
+        n_estimators=1,
+        bootstrap=True,
+        max_depth=1,
+        n_bins=2,
+        random_state=42,
+        class_weight={0: 0.0, 1: 1.0},
+    )
+
+    with pytest.raises(
+        RuntimeError, match="2 of 2 worker jobs failed"
+    ) as exc_info:
+        with dask.annotate(workers=workers):
+            model.fit(X, y)
+
+    assert "Rank-local sample weights must sum to a positive value" in str(
+        exc_info.value
+    )
+
+
 @pytest.mark.parametrize("mode", ["classification", "regression"])
 def test_random_forest_oob_score(client, mode):
     """

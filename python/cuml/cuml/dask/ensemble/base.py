@@ -178,7 +178,11 @@ def _func_fit(
     try:
         validation_error = None
         try:
-            model._prepare_fit_inputs(X, y)
+            _, _, sample_weight = model._prepare_fit_inputs(X, y)
+            if sample_weight is not None and sample_weight.sum().item() <= 0.0:
+                raise ValueError(
+                    "Rank-local sample weights must sum to a positive value"
+                )
         except Exception as error:
             validation_error = error
 
