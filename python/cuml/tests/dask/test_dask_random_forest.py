@@ -189,6 +189,39 @@ def test_rf_regression_nan_on_one_worker(client):
     _ = model.fit(X, y)
 
 
+def test_rf_refit_on_different_worker(client):
+    workers = list(client.scheduler_info(n_workers=-1)["workers"])[:2]
+    if len(workers) < 2:
+        pytest.skip("This test requires at least two workers")
+
+    def build_data(worker, offset):
+        X_part = cudf.DataFrame(
+            np.arange(80, dtype=np.float32).reshape(20, 4) + offset
+        )
+        y_part = cudf.Series(np.arange(20, dtype=np.float32) + offset)
+        X_future = client.scatter(X_part, workers=[worker], hash=False)
+        y_future = client.scatter(y_part, workers=[worker], hash=False)
+        return (
+            dask_cudf.from_delayed([X_future], meta=X_part.iloc[:0]),
+            dask_cudf.from_delayed([y_future], meta=y_part.iloc[:0]),
+        )
+
+    model = cuRFR_mg(workers=workers, n_estimators=5, max_depth=3)
+    X, y = build_data(workers[0], offset=0)
+    with dask.annotate(workers=[workers[0]]):
+        model.fit(X, y)
+
+    assert set(model.rfs) == set(workers)
+    assert len(model.get_params()) == len(workers)
+    model.set_params(max_depth=4)
+
+    X, y = build_data(workers[1], offset=1)
+    with dask.annotate(workers=[workers[1]]):
+        model.fit(X, y)
+
+    assert set(model.rfs) == set(workers)
+
+
 @pytest.mark.parametrize("partitions_per_worker", [5])
 def test_rf_classification_dask_array(partitions_per_worker, client):
     n_workers = len(client.scheduler_info(n_workers=-1)["workers"])

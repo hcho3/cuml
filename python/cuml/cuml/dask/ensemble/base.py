@@ -112,7 +112,7 @@ class BaseRandomForestModel(object):
                 futures[worker] = future
 
             wait_and_raise_from_futures(futures.values())
-            self.rfs = futures
+            self.rfs.update(futures)
         finally:
             comms.destroy()
 
